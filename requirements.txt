@@ -1,0 +1,10 @@
+ollama
+chromadb
+whoosh
+minio
+networkx
+python-dotenv
+pyyaml
+sentence-transformers
+pydantic
+fastapi
