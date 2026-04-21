@@ -3,11 +3,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Ollama
+# LLM config
+OPENROUTER_API_KEY = os.getenv("OPEN_ROUTER_KEY") 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://100.71.230.7:11434")
-LLM_ROUTER_MODEL = os.getenv("LLM_ROUTER_MODEL", "qwen3:8b")
-LLM_MAIN_MODEL = os.getenv("LLM_MAIN_MODEL", "qwen3.5:27b")
-
+LLM_ROUTER_MODEL = os.getenv("LLM_ROUTER_MODEL", "openai/gpt-oss-120b:free")
+LLM_MAIN_MODEL = os.getenv("LLM_MAIN_MODEL", "openai/gpt-oss-120b:free")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "qwen/qwen3-embedding-8b")
 # MinIO
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
@@ -27,4 +28,3 @@ MIND_MAP_PATH="./data/mindmap.json"
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
-

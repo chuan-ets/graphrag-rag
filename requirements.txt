@@ -1,4 +1,3 @@
-ollama
 chromadb
 whoosh
 minio
@@ -8,3 +7,6 @@ pyyaml
 sentence-transformers
 pydantic
 fastapi
+langchain-community
+pypdf
+openai

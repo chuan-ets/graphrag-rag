@@ -2,13 +2,14 @@ import os
 import chromadb
 #search libraries
 from whoosh.index import create_in, open_dir
-from whoosh.fields import TEXT
+from whoosh.fields import Schema, ID, TEXT
 from whoosh.qparser import QueryParser
 
 from typing import List, Dict
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 from config import *
 from mind_graph import MindmapGraph
+from sentence_transformers import CrossEncoder
 
 class Retriever:
     def __init__(self):
@@ -16,18 +17,30 @@ class Retriever:
         self.collection = self.chroma.get_or_create_collection(name="rag_docs")
         self._init_fts()
         self.graph = MindmapGraph(GRAPH_FILE)
-        self.embed_model = SentenceTransformer("BAAI/bge-m3")
-        self.rerank_model = SentenceTransformer("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        self.llm_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY,
+        )
+        self.embed_model_name = EMBED_MODEL
+        self.rerank_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
     def _init_fts(self):
         os.makedirs(FTS_INDEX_DIR, exist_ok=True)
         try:
             self.fts_idx = open_dir(FTS_INDEX_DIR)
         except Exception:
-            self.fts_idx = create_in(FTS_INDEX_DIR, TEXT(stored=True))
+            schema = Schema(id=ID(stored=True, unique=True), content=TEXT(stored=True))
+            self.fts_idx = create_in(FTS_INDEX_DIR, schema)
+
+    def openrouter_embed(self, texts):
+        if isinstance(texts, str):
+            res = self.llm_client.embeddings.create(model=self.embed_model_name, input=texts)
+            return res.data[0].embedding
+        else:
+            return [self.llm_client.embeddings.create(model=self.embed_model_name, input=t).data[0].embedding for t in texts]
 
     def vector_search(self, query: str, k: int) -> List[Dict]:
-        emb = self.embed_model.encode([query])[0].tolist()
+        emb = self.openrouter_embed([query])[0]
         res = self.collection.query(query_embeddings=[emb], n_results=k, include=["metadatas", "documents", "distances"])
         return [{"id": res["ids"][0][i], "text": res["documents"][0][i], "meta": res["metadatas"][0][i], 
                  "score": 1 - res["distances"][0][i], "src": "vector"} for i in range(len(res["ids"][0]))]
@@ -61,14 +74,14 @@ class Retriever:
         add(vec)
         add(fts, len(vec))
         add(graph, len(vec) + len(fts))
-        return sorted(scores.values(), key=lambda x: x["rrf"], reverse=True)[:settings.top_k_hybrid]
+        return sorted(scores.values(), key=lambda x: x["rrf"], reverse=True)[:TOP_K_HYBRID]
 
     def rerank(self, query: str, docs: List[Dict]) -> List[Dict]:
         pairs = [[query, d["text"]] for d in docs]
         scores = self.rerank_model.predict(pairs)
         for i, d in enumerate(docs):
             d["rerank_score"] = float(scores[i])
-        return sorted(docs, key=lambda x: x["rerank_score"], reverse=True)[:settings.top_k_rerank]
+        return sorted(docs, key=lambda x: x["rerank_score"], reverse=True)[:TOP_K_FINAL]
 
     def parent_join(self, docs: List[Dict]) -> List[Dict]:
         """Fetch full parent document context for retrieved chunks."""

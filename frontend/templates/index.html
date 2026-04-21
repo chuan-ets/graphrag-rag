@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GraphRAG Visualizer</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Vis.js for Graph -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar: Controls & Chat -->
+        <aside class="sidebar glass-panel">
+            <h1 class="logo">GraphRAG</h1>
+            
+            <!-- Ingestion Section -->
+            <section class="panel-section">
+                <h2>Ingest Documents</h2>
+                <div class="upload-area" id="drop-zone">
+                    <p>Drag & Drop .pdf or .txt</p>
+                    <input type="file" id="file-input" accept=".pdf,.txt" hidden>
+                    <button id="browse-btn" class="btn">Browse Files</button>
+                </div>
+                <div id="upload-status" class="status-msg"></div>
+            </section>
+
+            <!-- Chat Section -->
+            <section class="panel-section chat-section">
+                <h2>Query System</h2>
+                <div class="chat-history" id="chat-history">
+                    <!-- Messages go here -->
+                </div>
+                <div class="chat-input-wrapper">
+                    <input type="text" id="query-input" placeholder="Ask anything..." autocomplete="off">
+                    <button id="send-btn" class="btn primary-btn">Send</button>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Main Graph Area -->
+        <main class="graph-container glass-panel">
+            <div class="graph-header">
+                <h2>Knowledge Graph Explorer</h2>
+                <button id="refresh-graph-btn" class="btn small-btn">Refresh Graph</button>
+            </div>
+            <div id="mynetwork"></div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>

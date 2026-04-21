@@ -1,4 +1,4 @@
-import ollama
+from openai import OpenAI
 from typing import Dict, List
 import os
 import sys 
@@ -18,15 +18,27 @@ class RouterOutput(BaseModel):
 class RAGPipeline:
     def __init__(self):
         self.retriever = Retriever()
-        self.ollama = ollama.Client(host=settings.ollama_host)
-        self.graph = MindmapGraph(settings.graph_file)
+        self.llm_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY,
+        )
+        self.graph = MindmapGraph(GRAPH_FILE)
 
     def route(self, query: str) -> RouterOutput:
         prompt = f"""Classify the query. Return JSON only.
 Query: "{query}"
 Fields: intent (query|unknown), domain (general|technical|financial), use_graph (bool), confidence (0.0-1.0)"""
-        res = self.ollama.chat(model=settings.llm_router_model, messages=[{"role": "user", "content": prompt}], format="json")
-        return RouterOutput(**res["message"]["content"])
+        res = self.llm_client.chat.completions.create(
+            model=LLM_ROUTER_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
+        )
+        import json
+        try:
+            data = json.loads(res.choices[0].message.content)
+            return RouterOutput(**data)
+        except Exception:
+            return RouterOutput(intent="unknown", domain="general", use_graph=False, confidence=0.0)
 
     def build_context(self, query: str, docs: List[Dict]) -> str:
         parts = []
@@ -34,21 +46,28 @@ Fields: intent (query|unknown), domain (general|technical|financial), use_graph 
         if mm_hint:
             parts.append(mm_hint)
         for i, d in enumerate(docs, 1):
-            parts.append(f"[{i}] ({', '.join(d['sources'])}) {d['full_context'][:800]}...")
+            meta = d.get("meta", {})
+            filename = meta.get("filename", "Unknown")
+            chunk = meta.get("chunk_idx", "?")
+            parts.append(f"[{i}] (File: {filename}, Page/Section: {chunk}) {d['text']}")
         return "\n\n".join(parts)
 
     def generate(self, query: str, context: str) -> str:
         prompt = f"""You are a precise AI assistant. Answer ONLY using the provided context.
 If information is missing, state: "Not found in provided documents."
-Always cite sources using [1], [2] format.
+When answering, ALWAYS cite your sources using the marker (e.g. [1]) and mention the File name and Page/Section to be helpful.
 
 CONTEXT:
 {context}
 
 QUESTION: {query}
 ANSWER:"""
-        res = self.ollama.chat(model=settings.llm_main_model, messages=[{"role": "user", "content": prompt}], options={"temperature": 0.1})
-        return res["message"]["content"]
+        res = self.llm_client.chat.completions.create(
+            model=LLM_MAIN_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1
+        )
+        return res.choices[0].message.content
 
     def query(self, user_query: str) -> Dict:
         router = self.route(user_query)
