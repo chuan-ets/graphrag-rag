@@ -1,7 +1,7 @@
 import json
 from typing import List, Tuple
 from deepagents import create_deep_agent
-from app.config import OPENROUTER_API_KEY, LLM_MAIN_MODEL, SYS_PROMPT
+from app.config import *
 import os
 
 # Set API key for LangChain/DeepAgents

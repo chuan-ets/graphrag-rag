@@ -10,9 +10,14 @@ from mind_graph import MindmapGraph
 from retriever import Retriever
 from extractor import ExtractionAgent
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list:
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list:
+    #split the text in chunks of chunk_size with overlap of overlap
+    #make a list of words "I am student" -> ["i","am","student"]
+    #join the words in chunks of chunk_size with overlap of overlap
+    
     words = text.split()
     chunks = []
+
     for i in range(0, len(words), chunk_size - overlap):
         chunks.append({"text": " ".join(words[i:i + chunk_size]), "start": i, "end": i + chunk_size})
     return chunks
@@ -24,6 +29,7 @@ def ingest_file(file_path: str) -> dict:
     # MinIO Storage
     client = Minio(MINIO_ENDPOINT, access_key=MINIO_ACCESS_KEY,
                    secret_key=MINIO_SECRET_KEY, secure=False)
+    #check bucket exist
     if not client.bucket_exists(MINIO_BUCKET):
         client.make_bucket(MINIO_BUCKET)
     client.fput_object(MINIO_BUCKET, f"{doc_id}/{filename}", file_path)
@@ -32,10 +38,18 @@ def ingest_file(file_path: str) -> dict:
     if file_path.lower().endswith('.pdf'):
         try:
             loader = PyPDFLoader(file_path)
-            docs = loader.load()
-            # Gộp text các trang PDF lại, mỗi trang là một chunk
-            chunks = [{"text": doc.page_content, "start": 0, "end": 0} for doc in docs]
-            text = "\n".join([doc.page_content for doc in docs])
+            pages = loader.load()
+            chunks = []
+            for i, page in enumerate(pages):                
+                page_text = page.page_content
+                if len(page_text.split()) > CHUNK_SIZE:
+                    sub_chunks = chunk_text(page_text)
+                    for sc in sub_chunks:
+                        sc["page_idx"] = i
+                        chunks.append(sc)
+                else:
+                    chunks.append({"text": page_text, "start": 0, "end": 0, "page_idx": i})
+            text = "\n".join([p.page_content for p in pages])
         except Exception as e:
             return {"status": "error", "message": f"Could not read PDF: {e}"}
     else:
@@ -45,12 +59,20 @@ def ingest_file(file_path: str) -> dict:
         except Exception as e:
             return {"status": "error", "message": f"Could not read file as UTF-8 text: {e}"}
         chunks = chunk_text(text)
+
     llm_client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
+        base_url=OPENROUTER_BASE_URL,
         api_key=OPENROUTER_API_KEY,
     )
     embed_model_name = EMBED_MODEL
-    embs = [llm_client.embeddings.create(model=embed_model_name, input=c["text"]).data[0].embedding for c in chunks]
+    # Batch Embedding for better performance
+    texts_to_embed = [c["text"] for c in chunks]
+    embs = []
+    batch_size = 20 
+    for i in range(0, len(texts_to_embed), batch_size):
+        batch = texts_to_embed[i:i + batch_size]
+        res = llm_client.embeddings.create(model=embed_model_name, input=batch)
+        embs.extend([e.embedding for e in res.data])
     
     # ChromaDB (Store full doc + chunks)
     retriever = Retriever()
