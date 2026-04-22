@@ -6,7 +6,7 @@ from whoosh.fields import Schema, ID, TEXT
 from whoosh.qparser import QueryParser
 
 from typing import List, Dict
-from openai import OpenAI
+from app.llm_wrapper import FallbackLLM
 from config import *
 from mind_graph import MindmapGraph
 from sentence_transformers import CrossEncoder
@@ -17,10 +17,7 @@ class Retriever:
         self.collection = self.chroma.get_or_create_collection(name="rag_docs")
         self._init_fts()
         self.graph = MindmapGraph(GRAPH_FILE)
-        self.llm_client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
-        )
+        self.llm_client = FallbackLLM()
         self.embed_model_name = EMBED_MODEL
         self.rerank_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
@@ -34,10 +31,10 @@ class Retriever:
 
     def openrouter_embed(self, texts):
         if isinstance(texts, str):
-            res = self.llm_client.embeddings.create(model=self.embed_model_name, input=texts)
+            res = self.llm_client.embed(primary_model=self.embed_model_name, input_texts=texts)
             return res.data[0].embedding
         else:
-            return [self.llm_client.embeddings.create(model=self.embed_model_name, input=t).data[0].embedding for t in texts]
+            return [self.llm_client.embed(primary_model=self.embed_model_name, input_texts=t).data[0].embedding for t in texts]
 
     def vector_search(self, query: str, k: int) -> List[Dict]:
         emb = self.openrouter_embed([query])[0]

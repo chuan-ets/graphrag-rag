@@ -2,7 +2,7 @@ from langchain_community.document_loaders import PyPDFLoader
 import uuid
 import os
 from minio import Minio
-from openai import OpenAI
+from app.llm_wrapper import FallbackLLM
 from whoosh import index, fields
 from whoosh.writing import AsyncWriter
 from config import *
@@ -60,10 +60,7 @@ def ingest_file(file_path: str) -> dict:
             return {"status": "error", "message": f"Could not read file as UTF-8 text: {e}"}
         chunks = chunk_text(text)
 
-    llm_client = OpenAI(
-        base_url=OPENROUTER_BASE_URL,
-        api_key=OPENROUTER_API_KEY,
-    )
+    llm_client = FallbackLLM()
     embed_model_name = EMBED_MODEL
     # Batch Embedding for better performance
     texts_to_embed = [c["text"] for c in chunks]
@@ -71,13 +68,13 @@ def ingest_file(file_path: str) -> dict:
     batch_size = 20 
     for i in range(0, len(texts_to_embed), batch_size):
         batch = texts_to_embed[i:i + batch_size]
-        res = llm_client.embeddings.create(model=embed_model_name, input=batch)
+        res = llm_client.embed(primary_model=embed_model_name, input_texts=batch)
         embs.extend([e.embedding for e in res.data])
     
     # ChromaDB (Store full doc + chunks)
     retriever = Retriever()
-    # Embed full doc with Ollama
-    full_emb = llm_client.embeddings.create(model=embed_model_name, input=text).data[0].embedding
+    # Embed full doc
+    full_emb = llm_client.embed(primary_model=embed_model_name, input_texts=text).data[0].embedding
     retriever.collection.add(
         embeddings=[full_emb],
         documents=[text],

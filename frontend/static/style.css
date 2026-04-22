@@ -25,9 +25,9 @@ body {
 
 .app-container {
     display: flex;
+    justify-content: center;
     height: 100vh;
     padding: 20px;
-    gap: 20px;
 }
 
 .glass-panel {
@@ -40,8 +40,9 @@ body {
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
 
-.sidebar {
-    width: 350px;
+.main-chat-area {
+    width: 100%;
+    max-width: 900px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -80,7 +81,8 @@ body {
     transition: all 0.3s ease;
 }
 
-.upload-area:hover, .upload-area.dragover {
+.upload-area:hover,
+.upload-area.dragover {
     border-color: var(--accent-color);
     background: rgba(59, 130, 246, 0.05);
 }
@@ -89,6 +91,43 @@ body {
     font-size: 14px;
     color: var(--text-secondary);
     margin-bottom: 15px;
+}
+
+.uploaded-files-container {
+    margin-top: 15px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 15px;
+}
+
+.uploaded-files-container h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+#uploaded-files-list {
+    list-style-type: none;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+#uploaded-files-list li {
+    font-size: 13px;
+    padding: 6px 8px;
+    background: #f3f4f6;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+}
+
+#uploaded-files-list li::before {
+    content: "📄";
+    margin-right: 8px;
+    font-size: 14px;
 }
 
 .btn {
@@ -143,9 +182,11 @@ body {
 ::-webkit-scrollbar {
     width: 6px;
 }
+
 ::-webkit-scrollbar-track {
     background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.2);
     border-radius: 3px;
@@ -161,8 +202,15 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .msg.user {
@@ -232,9 +280,59 @@ body {
 .vis-network {
     outline: none;
 }
+
 .status-msg {
     margin-top: 10px;
     font-size: 13px;
     text-align: center;
     color: var(--success-color);
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.chat-header h2 {
+    margin-bottom: 0;
+}
+
+/* Modal Styling */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    position: relative;
+    margin: 2% auto;
+    width: 90%;
+    height: 90%;
+}
+
+.close-modal-btn {
+    color: var(--text-secondary);
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.close-modal-btn:hover,
+.close-modal-btn:focus {
+    color: var(--text-primary);
+    text-decoration: none;
+    cursor: pointer;
 }

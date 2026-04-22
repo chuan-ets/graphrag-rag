@@ -1,95 +1,131 @@
-# GraphRAG Pipeline API
+# GraphRAG Pipeline & Explorer
 
-This is an advanced Retrieval-Augmented Generation (RAG) system that combines Knowledge Graph traversal, Vector Search, and Full-Text Search (FTS) to build highly contextual answers. It exposes a set of REST APIs using FastAPI and utilizes cloud LLMs and embeddings via **OpenRouter** (using the `openai` Python SDK).
+This project is a state-of-the-art **Retrieval-Augmented Generation (RAG)** application. It goes beyond simple vector search by combining **Vector Embeddings**, **Full-Text Search (FTS)**, and a dynamically generated **Knowledge Graph** to provide highly contextual and accurate answers. 
 
-## Features
+It comes with a fully-featured **ChatGPT-style Web UI** that allows you to chat with your documents, upload new files, and visualize the underlying Knowledge Graph in an interactive popup modal.
 
-- **Hybrid Search + Graph Search**: Combines ChromaDB vector search, Whoosh full-text search, and NetworkX-based mindmap/knowledge graph search using Reciprocal Rank Fusion (RRF).
-- **Knowledge Graph Generation**: Extracts triples (subject-relation-object) automatically from documents to incrementally build a mindmap.
-- **Query Routing**: Employs an LLM router to classify the intent and domain of the user query before retrieval.
-- **Parent Document Retrieval (Parent Join)**: Fetches the entire document context after finding the most relevant chunks to maintain contextual integrity.
-- **Cloud AI Models**: Uses OpenRouter to access powerful generation and embedding models seamlessly without local hardware constraints.
-- **Document Storage**: Uses MinIO to store ingested raw files.
+---
 
-## Project Structure
+## 🌟 Key Features
 
-- `app/main.py`: FastAPI application entry point, containing `/ingest` and `/query` endpoints.
-- `app/pipeline.py`: Defines the main RAG pipeline (`RAGPipeline`), responsible for query routing, context building, and generating final answers via OpenRouter.
-- `app/retriever.py`: Manages the complex retrieval logic combining Vector, FTS, and Graph searches (`Retriever`). Implements RRF fusion and Parent Join.
-- `app/ingest.py`: Handles document parsing (PDFs, TXT), chunking, storing raw files in MinIO, generating embeddings via OpenRouter, creating Whoosh FTS indexes, and extracting triples for the Knowledge Graph.
-- `app/mind_graph.py`: Manages the NetworkX Knowledge Graph, loads/saves the graph to a JSON file, and provides BFS graph expansion algorithms to find related entities.
-- `app/config.py`: Environment and configuration variables (OpenRouter API keys, MinIO credentials, Chroma DB host, model names).
-- `docker-compose.yml`: Contains services for ChromaDB and MinIO.
+### 🧠 Advanced RAG Backend
+- **Hybrid Retrieval Strategy**: Merges results from ChromaDB (Vector Search), Whoosh (Keyword/FTS Search), and NetworkX (Graph Traversal) using **Reciprocal Rank Fusion (RRF)**.
+- **Agentic Knowledge Extraction**: Utilizes `deepagents` and LangChain to autonomously extract entities and relationships (triples) from ingested documents to build a Knowledge Graph.
+- **Semantic Query Routing**: An LLM router evaluates the user's query intent and domain before deciding how to retrieve information.
+- **Cross-Encoder Reranking**: Uses `ms-marco-MiniLM-L-6-v2` to rerank the fused results for maximum relevance.
+- **Parent-Child Document Retrieval**: Retrieves small, dense chunks for search, but injects the larger parent document context into the LLM prompt to preserve meaning.
+- **Cloud LLM Integration**: Fully integrated with **OpenRouter** for both embedding generation and conversational completion, removing the need for heavy local GPUs.
 
-## Prerequisites
+### 💻 Interactive Frontend
+- **ChatGPT-Style Interface**: A clean, centered chat interface for querying your documents.
+- **Knowledge Graph Explorer Modal**: Click "View Knowledge Graph" to open an interactive, physics-based visualization of your mindmap (powered by Vis.js).
+- **Live Document Management**: Drag-and-drop file ingestion (PDF, TXT) with a real-time list of uploaded files directly in the UI.
+
+---
+
+## 📁 Architecture & File Structure
+
+### Backend (`/backend/app`)
+- **`main.py`**: The FastAPI application entry point. Exposes endpoints for `/ingest`, `/query`, `/graph`, and `/files`.
+- **`pipeline.py`**: The orchestrator (`RAGPipeline`). Handles query routing, context building, and interacting with the LLM to generate the final answer.
+- **`retriever.py`**: The core search engine (`Retriever`). Executes Vector, FTS, and Graph searches, fuses them with RRF, and applies Cross-Encoder reranking.
+- **`ingest.py`**: The data pipeline. Handles document parsing, chunking, MinIO storage, embedding generation, Whoosh indexing, and triggers the `ExtractionAgent`.
+- **`extractor.py`**: A `deepagents`-powered LLM agent that reads text chunks and outputs JSON arrays of Subject-Relation-Object triples.
+- **`mind_graph.py`**: Manages the NetworkX Knowledge Graph, saving/loading state, and providing Breadth-First Search (BFS) expansion for queries.
+- **`config.py`**: Centralized configuration management via `.env` variables.
+
+### Frontend (`/frontend`)
+- **`templates/index.html`**: The main layout, structured with a centered chat area and a hidden modal for the graph.
+- **`static/style.css`**: Styling rules for the ChatGPT-like UI, animations, and the glassmorphism design system.
+- **`static/main.js`**: Handles API communication, chat history rendering, file uploads, file list fetching, and the Vis.js network graph initialization.
+
+---
+
+## 🛠️ Prerequisites
 
 - **Python 3.10+**
 - **Docker & Docker Compose** (for MinIO and ChromaDB)
 - **OpenRouter API Key**: Sign up at [OpenRouter](https://openrouter.ai/) to get your API key.
 
-## Setup & Installation
+---
 
-1. **Start the Infrastructure**
-   Start MinIO and ChromaDB using Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
+## 🚀 Setup & Installation
 
-2. **Setup Python Environment**
-   Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-3. **Configure Environment Variables**
-   Create a `.env` file in the root directory (or update the existing one) with the following parameters:
-   ```env
-   # OpenRouter
-   OPEN_ROUTER_KEY=your-openrouter-api-key-here
-   LLM_ROUTER_MODEL=openai/gpt-oss-120b:free
-   LLM_MAIN_MODEL=openai/gpt-oss-120b:free
-   EMBED_MODEL=qwen/qwen3-embedding-8b
-   
-   # MinIO
-   MINIO_ENDPOINT=localhost:9000
-   MINIO_ACCESS_KEY=minioadmin
-   MINIO_SECRET_KEY=minioadmin
-   MINIO_BUCKET=rag-documents
-   
-   # ChromaDB
-   CHROMA_HOST=localhost
-   CHROMA_PORT=8000
-   ```
-
-## Usage
-
-### Start the API Server
-Run the FastAPI application via uvicorn:
+### 1. Start the Infrastructure
+Start the MinIO (Object Storage) and ChromaDB (Vector Database) services using Docker Compose from the root directory:
 ```bash
-uvicorn app.main:app --port 8080
+docker compose up -d
 ```
 
-### Ingest Documents
-You can ingest `.txt` or `.pdf` files. The system will store the file in MinIO, chunk it, embed it via OpenRouter, and build the FTS and Knowledge Graph indexes.
+### 2. Setup Python Environments
+We recommend separate environments for the backend and frontend if they have different dependencies, but you can also use one. 
+
+**Backend Setup:**
 ```bash
-curl -X POST -F "file=@/path/to/your/document.pdf" http://localhost:8080/ingest
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Query the System
-Ask questions against your ingested documents:
-```bash
-curl -X POST -F "query=What is O-RAN?" http://localhost:8080/query
+### 3. Configure Environment Variables
+Create a `.env` file in the `backend/` directory with the following configuration:
+```env
+# OpenRouter Configuration
+OPEN_ROUTER_KEY=your-openrouter-api-key-here
+LLM_ROUTER_MODEL=openai/gpt-oss-120b:free
+LLM_MAIN_MODEL=openai/gpt-oss-120b:free
+EMBED_MODEL=qwen/qwen3-embedding-8b
+
+# MinIO Storage
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=rag-documents
+
+# ChromaDB Vector Store
+CHROMA_HOST=localhost
+CHROMA_PORT=8000
 ```
 
-## How It Works (Retrieval Process)
+---
 
-1. **Routing**: The user's query is classified by a lightweight LLM router.
-2. **Retrieval**: 
-   - **Vector Search**: Embeds the query and queries ChromaDB.
-   - **FTS Search**: Performs a keyword search via Whoosh.
-   - **Graph Search**: Expands the query's entities by 2 hops in the Mindmap Graph to find semantically related documents.
-3. **Fusion**: Results from the three methods are merged using Reciprocal Rank Fusion (RRF).
-4. **Parent Join**: The system fetches the original parent chunks of the retrieved vectors for full context.
-5. **Generation**: The context is fed into the main LLM to generate a precise, cited answer.
+## 🎮 Running the Application
+
+### 1. Start the Backend API
+In the `backend` directory, activate your virtual environment and run the FastAPI server:
+```bash
+source .venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8080
+```
+*The API will be available at http://localhost:8080*
+
+### 2. Start the Frontend
+In the `frontend` directory, serve the application.
+```bash
+source .frontend/bin/activate
+python3 -m app
+```
+
+---
+
+## 📚 API Endpoints Overview
+
+- `POST /ingest`: Accepts a `multipart/form-data` file upload. Checks for duplicates, saves to MinIO, chunks the text, embeds it into ChromaDB, indexes it in Whoosh, and extracts graph triples.
+- `POST /query`: Accepts a `query` string. Routes the query, searches databases, fuses results, and returns the LLM-generated answer along with citations.
+- `GET /files`: Returns a deduplicated JSON list of all documents successfully ingested into the system.
+- `GET /graph`: Returns the current state of the Knowledge Graph (nodes and edges) formatted for Vis.js frontend rendering.
+
+---
+
+## 💡 How the Retrieval Process Works
+
+1. **Routing**: The user's query is classified by a lightweight LLM router to determine intent and domain.
+2. **Hybrid Retrieval**: 
+   - **Vector Search**: Embeds the query and performs a cosine similarity search in ChromaDB.
+   - **FTS Search**: Performs a fast keyword/BM25 search via Whoosh.
+   - **Graph Search**: Identifies entities in the query and expands them by 2 hops in the Mindmap Graph to find semantically related chunks.
+3. **Fusion (RRF)**: Results from the three distinct retrieval methods are mathematically merged using Reciprocal Rank Fusion to balance exact matches with semantic relevance.
+4. **Reranking**: A Cross-Encoder model (`ms-marco-MiniLM-L-6-v2`) re-scores the top fused results against the original query to ensure maximum relevance.
+5. **Parent Join**: The system looks up the original, larger parent chunks of the retrieved snippets to provide the LLM with complete, unbroken context.
+6. **Generation**: The compiled context is fed into the main LLM to generate a precise, cited answer.

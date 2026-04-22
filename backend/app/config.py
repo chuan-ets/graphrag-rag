@@ -7,9 +7,19 @@ load_dotenv()
 OPENROUTER_API_KEY = os.getenv("OPEN_ROUTER_KEY") 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-#OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://100.71.230.7:11434")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://100.71.230.7:11434")
 LLM_ROUTER_MODEL = os.getenv("LLM_ROUTER_MODEL", "openai/gpt-oss-120b:free")
 LLM_MAIN_MODEL = os.getenv("LLM_MAIN_MODEL", "openai/gpt-oss-120b:free")
+
+# List of fallback OpenRouter models to try before falling back to Ollama
+LLM_FALLBACK_MODELS = [
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "google/gemini-pro-1.5-exp",
+    "meta-llama/llama-3-70b-instruct:free"
+]
+
+OLLAMA_CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL", "llama3")
+OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "qwen/qwen3-embedding-8b")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))

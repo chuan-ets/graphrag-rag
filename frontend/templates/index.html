@@ -12,8 +12,8 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar: Controls & Chat -->
-        <aside class="sidebar glass-panel">
+        <!-- Main Chat Area -->
+        <main class="main-chat-area glass-panel">
             <h1 class="logo">GraphRAG</h1>
             
             <!-- Ingestion Section -->
@@ -25,11 +25,21 @@
                     <button id="browse-btn" class="btn">Browse Files</button>
                 </div>
                 <div id="upload-status" class="status-msg"></div>
+
+                <div class="uploaded-files-container">
+                    <h3>Uploaded Files</h3>
+                    <ul id="uploaded-files-list">
+                        <!-- Files will be listed here -->
+                    </ul>
+                </div>
             </section>
 
             <!-- Chat Section -->
             <section class="panel-section chat-section">
-                <h2>Query System</h2>
+                <div class="chat-header">
+                    <h2>Query System</h2>
+                    <button id="open-graph-btn" class="btn small-btn">View Knowledge Graph</button>
+                </div>
                 <div class="chat-history" id="chat-history">
                     <!-- Messages go here -->
                 </div>
@@ -38,16 +48,19 @@
                     <button id="send-btn" class="btn primary-btn">Send</button>
                 </div>
             </section>
-        </aside>
-
-        <!-- Main Graph Area -->
-        <main class="graph-container glass-panel">
-            <div class="graph-header">
-                <h2>Knowledge Graph Explorer</h2>
-                <button id="refresh-graph-btn" class="btn small-btn">Refresh Graph</button>
-            </div>
-            <div id="mynetwork"></div>
         </main>
+
+        <!-- Graph Modal -->
+        <div id="graph-modal" class="modal">
+            <div class="modal-content graph-container glass-panel">
+                <span class="close-modal-btn">&times;</span>
+                <div class="graph-header">
+                    <h2>Knowledge Graph Explorer</h2>
+                    <button id="refresh-graph-btn" class="btn small-btn">Refresh Graph</button>
+                </div>
+                <div id="mynetwork"></div>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='main.js') }}"></script>

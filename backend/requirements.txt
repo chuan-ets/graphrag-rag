@@ -10,3 +10,8 @@ fastapi
 langchain-community
 pypdf
 openai
+deepagents
+python-multipart
+uvicorn
+langgraph
+langchain_openrouter

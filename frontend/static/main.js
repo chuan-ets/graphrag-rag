@@ -161,8 +161,12 @@ async function handleFiles() {
         if (result.status === 'success') {
             statusMsg.style.color = 'var(--success-color)';
             statusMsg.innerText = `Success! Chunked into ${result.chunks} parts.`;
-            // Refresh graph after successful ingestion
-            fetchAndRenderGraph();
+            // Refresh files list after successful ingestion
+            fetchAndRenderFiles();
+            // Refresh graph if it's currently visible
+            if (graphModal.style.display === 'block') {
+                fetchAndRenderGraph();
+            }
         } else {
             throw new Error(result.message || 'Upload failed');
         }
@@ -234,5 +238,54 @@ queryInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendQuery();
 });
 
-// Initial load
-fetchAndRenderGraph();
+// --- Modal Logic ---
+const graphModal = document.getElementById('graph-modal');
+const openGraphBtn = document.getElementById('open-graph-btn');
+const closeModalBtn = document.querySelector('.close-modal-btn');
+
+openGraphBtn.addEventListener('click', () => {
+    graphModal.style.display = 'block';
+    if (!network) {
+        fetchAndRenderGraph();
+    } else {
+        network.redraw();
+        network.fit();
+    }
+});
+
+closeModalBtn.addEventListener('click', () => {
+    graphModal.style.display = 'none';
+});
+
+window.addEventListener('click', (e) => {
+    if (e.target === graphModal) {
+        graphModal.style.display = 'none';
+    }
+});
+
+// --- Uploaded Files List ---
+async function fetchAndRenderFiles() {
+    try {
+        const response = await fetch(`${API_BASE}/files`);
+        const data = await response.json();
+        
+        const list = document.getElementById('uploaded-files-list');
+        list.innerHTML = '';
+        
+        if (data.status === 'success' && data.files && data.files.length > 0) {
+            data.files.forEach(file => {
+                const li = document.createElement('li');
+                li.innerText = file.filename;
+                li.title = `Doc ID: ${file.doc_id}`;
+                list.appendChild(li);
+            });
+        } else {
+            list.innerHTML = '<li style="background:transparent; color:#94a3b8; justify-content:center;">No files uploaded yet.</li>';
+        }
+    } catch (error) {
+        console.error('Failed to fetch files:', error);
+    }
+}
+
+// Initial load for files
+fetchAndRenderFiles();

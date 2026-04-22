@@ -4,6 +4,7 @@ import os
 import sys 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from app.config import *
+from app.llm_wrapper import FallbackLLM
 from pydantic import BaseModel
 from config import *
 from retriever import Retriever
@@ -18,18 +19,15 @@ class RouterOutput(BaseModel):
 class RAGPipeline:
     def __init__(self):
         self.retriever = Retriever()
-        self.llm_client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
-        )
+        self.llm_client = FallbackLLM()
         self.graph = MindmapGraph(GRAPH_FILE)
 
     def route(self, query: str) -> RouterOutput:
         prompt = f"""Classify the query. Return JSON only.
 Query: "{query}"
 Fields: intent (query|unknown), domain (general|technical|financial), use_graph (bool), confidence (0.0-1.0)"""
-        res = self.llm_client.chat.completions.create(
-            model=LLM_ROUTER_MODEL,
+        res = self.llm_client.chat_completion(
+            primary_model=LLM_ROUTER_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"}
         )
@@ -62,8 +60,8 @@ CONTEXT:
 
 QUESTION: {query}
 ANSWER:"""
-        res = self.llm_client.chat.completions.create(
-            model=LLM_MAIN_MODEL,
+        res = self.llm_client.chat_completion(
+            primary_model=LLM_MAIN_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1
         )

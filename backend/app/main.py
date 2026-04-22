@@ -30,6 +30,14 @@ async def query_endpoint(query: str = Form(...)):
 
 @app.post("/ingest")
 async def ingest_endpoint(file: UploadFile = File(...)):
+    # Check if file already exists
+    try:
+        existing = pipeline.retriever.collection.get(where={"filename": file.filename, "is_full": True})
+        if existing and existing.get("ids") and len(existing["ids"]) > 0:
+            return {"status": "error", "message": f"File '{file.filename}' has already been uploaded."}
+    except Exception as e:
+        logging.warning(f"Failed to check for existing file: {e}")
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
@@ -38,6 +46,23 @@ async def ingest_endpoint(file: UploadFile = File(...)):
     finally:
         os.unlink(tmp_path)
     return result
+
+@app.get("/files")
+async def list_files():
+    try:
+        results = pipeline.retriever.collection.get(where={"is_full": True}, include=["metadatas"])
+        files = []
+        for meta in results.get("metadatas", []):
+            if meta:
+                files.append({
+                    "doc_id": meta.get("doc_id"),
+                    "filename": meta.get("filename")
+                })
+        # Deduplicate files by doc_id
+        unique_files = list({f["doc_id"]: f for f in files}.values())
+        return {"status": "success", "files": unique_files}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.get("/graph")
 async def get_graph():
