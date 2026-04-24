@@ -1,87 +1,65 @@
 import logging
+import time
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
-from app.config import (
-    OPENROUTER_API_KEY, 
-    OPENROUTER_BASE_URL, 
-    OLLAMA_HOST, 
-    LLM_FALLBACK_MODELS, 
-    OLLAMA_CHAT_MODEL, 
-    OLLAMA_EMBED_MODEL
-)
+from app.config import OLLAMA_HOST, OLLAMA_CHAT_MODEL, OLLAMA_EMBED_MODEL
+from app.metrics import collector
+
 
 class FallbackLLM:
     """
-    A wrapper around OpenAI clients that provides an automatic fallback mechanism.
-    Tries the primary OpenRouter model, then fallback OpenRouter models, and finally Ollama.
+    LLM wrapper using Ollama exclusively via its OpenAI-compatible API.
     """
     def __init__(self):
-        self.or_client = OpenAI(
-            base_url=OPENROUTER_BASE_URL,
-            api_key=OPENROUTER_API_KEY,
-        )
-        self.ollama_client = OpenAI(
+        self.client = OpenAI(
             base_url=f"{OLLAMA_HOST}/v1",
-            api_key="ollama", # Required by the SDK but ignored by Ollama
+            api_key="ollama",  # Required by the SDK but ignored by Ollama
         )
 
     def chat_completion(self, primary_model: str, messages: List[Dict], **kwargs) -> Any:
-        # Build the list of models to try
-        models_to_try = [("openrouter", primary_model)]
-        
-        for fm in LLM_FALLBACK_MODELS:
-            models_to_try.append(("openrouter", fm))
+        """
+        Perform a chat completion. primary_model is accepted for API compatibility
+        but Ollama always uses OLLAMA_CHAT_MODEL unless overridden via env.
+        """
+        model = OLLAMA_CHAT_MODEL
+        logging.info(f"Chat completion with Ollama model: {model}")
+        start = time.time()
+        try:
+            res = self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                **kwargs
+            )
+            duration = time.time() - start
+            collector.record_llm_call(model, "chat", duration, True)
             
-        models_to_try.append(("ollama", OLLAMA_CHAT_MODEL))
-        
-        last_exception = None
-        
-        for provider, model_name in models_to_try:
-            try:
-                logging.info(f"Attempting chat completion with {provider} model: {model_name}")
-                if provider == "openrouter":
-                    return self.or_client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        **kwargs
-                    )
-                elif provider == "ollama":
-                    return self.ollama_client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        **kwargs
-                    )
-            except Exception as e:
-                logging.warning(f"{provider} model {model_name} failed: {e}")
-                last_exception = e
-                
-        # If all models failed, raise the last exception
-        raise last_exception
+            # Record token usage if available
+            if hasattr(res, 'usage') and res.usage:
+                collector.record_llm_tokens(
+                    res.usage.prompt_tokens, 
+                    res.usage.completion_tokens, 
+                    model
+                )
+            return res
+        except Exception as e:
+            collector.record_llm_call(model, "chat", time.time() - start, False)
+            raise e
 
     def embed(self, primary_model: str, input_texts: Any) -> Any:
-        # For embeddings, we just try OpenRouter, then Ollama
-        models_to_try = [
-            ("openrouter", primary_model),
-            ("ollama", OLLAMA_EMBED_MODEL)
-        ]
-        
-        last_exception = None
-        
-        for provider, model_name in models_to_try:
-            try:
-                logging.info(f"Attempting embedding with {provider} model: {model_name}")
-                if provider == "openrouter":
-                    return self.or_client.embeddings.create(
-                        model=model_name,
-                        input=input_texts
-                    )
-                elif provider == "ollama":
-                    return self.ollama_client.embeddings.create(
-                        model=model_name,
-                        input=input_texts
-                    )
-            except Exception as e:
-                logging.warning(f"Embedding with {provider} model {model_name} failed: {e}")
-                last_exception = e
-                
-        raise last_exception
+        """
+        Generate embeddings using Ollama. primary_model is accepted for API
+        compatibility but Ollama always uses OLLAMA_EMBED_MODEL.
+        """
+        model = OLLAMA_EMBED_MODEL
+        logging.info(f"Embedding with Ollama model: {model}")
+        start = time.time()
+        try:
+            res = self.client.embeddings.create(
+                model=model,
+                input=input_texts
+            )
+            collector.record_llm_call(model, "embed", time.time() - start, True)
+            return res
+        except Exception as e:
+            collector.record_llm_call(model, "embed", time.time() - start, False)
+            raise e

@@ -1,4 +1,4 @@
-#!/home/oran/projects/graphrag-rag/frontend/.frontend/bin/python3.12
+#!/home/oran/projects/graphrag-rag/frontend/.frontend/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

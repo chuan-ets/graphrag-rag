@@ -43,17 +43,16 @@ Fields: intent (query|unknown), domain (general|technical|financial), use_graph 
         mm_hint = self.graph.get_mindmap_context(query)
         if mm_hint:
             parts.append(mm_hint)
-        for i, d in enumerate(docs, 1):
+        for d in docs:
             meta = d.get("meta", {})
             filename = meta.get("filename", "Unknown")
-            chunk = meta.get("chunk_idx", "?")
-            parts.append(f"[{i}] (File: {filename}, Page/Section: {chunk}) {d['text']}")
+            parts.append(f"SOURCE: {filename}\nCONTENT: {d['text']}")
         return "\n\n".join(parts)
 
     def generate(self, query: str, context: str) -> str:
         prompt = f"""You are a precise AI assistant. Answer ONLY using the provided context.
 If information is missing, state: "Not found in provided documents."
-When answering, ALWAYS cite your sources using the marker (e.g. [1]) and mention the File name and Page/Section to be helpful.
+When answering, ALWAYS cite your sources using the exact filename in square brackets, e.g. [filename.txt].
 
 CONTEXT:
 {context}
@@ -67,12 +66,12 @@ ANSWER:"""
         )
         return res.choices[0].message.content
 
-    def query(self, user_query: str) -> Dict:
+    def query(self, user_query: str, method: str = "all") -> Dict:
         router = self.route(user_query)
         if router.intent == "unknown" or router.confidence < 0.3:
             return {"answer": "Query unclear. Please rephrase.", "router": router.model_dump(), "sources": []}
         
-        docs = self.retriever.search(user_query)
+        docs = self.retriever.search(user_query, method=method)
         if not docs:
             return {"answer": "No relevant documents found.", "router": router.model_dump(), "sources": []}
         
@@ -82,5 +81,5 @@ ANSWER:"""
         return {
             "answer": answer,
             "router": router.model_dump(),
-            "sources": [{"id": d["id"], "score": d.get("rerank_score", 0), "sources": d["sources"]} for d in docs]
+            "sources": [{"id": d["id"], "score": d.get("rerank_score", 0), "filename": d.get("meta", {}).get("filename", "Unknown"), "sources": d["sources"]} for d in docs]
         }

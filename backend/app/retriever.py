@@ -14,12 +14,15 @@ from sentence_transformers import CrossEncoder
 class Retriever:
     def __init__(self):
         self.chroma = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-        self.collection = self.chroma.get_or_create_collection(name="rag_docs")
+        self.embed_model_name = EMBED_MODEL
+        self.rerank_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
         self._init_fts()
         self.graph = MindmapGraph(GRAPH_FILE)
         self.llm_client = FallbackLLM()
-        self.embed_model_name = EMBED_MODEL
-        self.rerank_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+    @property
+    def collection(self):
+        return self.chroma.get_or_create_collection(name="rag_docs")
 
     def _init_fts(self):
         os.makedirs(FTS_INDEX_DIR, exist_ok=True)
@@ -61,16 +64,18 @@ class Retriever:
 
     def rrf_fusion(self, vec: List[Dict], fts: List[Dict], graph: List[Dict]) -> List[Dict]:
         scores = {}
-        def add(results, offset=0):
+        def add(results):
             for rank, item in enumerate(results):
                 cid = item["id"]
                 if cid not in scores:
                     scores[cid] = {**item, "rrf": 0.0, "sources": []}
-                scores[cid]["rrf"] += 1.0 / (RRF_K + rank + offset)
+                # Standard RRF formula: 1 / (K + rank)
+                scores[cid]["rrf"] += 1.0 / (RRF_K + rank)
                 scores[cid]["sources"].append(item["src"])
+        
         add(vec)
-        add(fts, len(vec))
-        add(graph, len(vec) + len(fts))
+        add(fts)
+        add(graph)
         return sorted(scores.values(), key=lambda x: x["rrf"], reverse=True)[:TOP_K_HYBRID]
 
     def rerank(self, query: str, docs: List[Dict]) -> List[Dict]:
@@ -92,10 +97,18 @@ class Retriever:
                 d["full_context"] = parent_map.get(doc_id, d["text"])
         return docs
 
-    def search(self, query: str) -> List[Dict]:
-        vec = self.vector_search(query, TOP_K_HYBRID)
-        fts = self.fts_search(query, TOP_K_HYBRID)
-        graph = self.graph_search(query, TOP_K_HYBRID)
+    def search(self, query: str, method: str = "all") -> List[Dict]:
+        vec = []
+        fts = []
+        graph = []
+        
+        if method in ["all", "vector"]:
+            vec = self.vector_search(query, TOP_K_HYBRID)
+        if method in ["all", "fts"]:
+            fts = self.fts_search(query, TOP_K_HYBRID)
+        if method in ["all", "graph"]:
+            graph = self.graph_search(query, TOP_K_HYBRID)
+            
         fused = self.rrf_fusion(vec, fts, graph)
         reranked = self.rerank(query, fused)
         return self.parent_join(reranked)[:TOP_K_FINAL]

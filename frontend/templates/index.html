@@ -38,6 +38,11 @@
             <section class="panel-section chat-section">
                 <div class="chat-header">
                     <h2>Query System</h2>
+                    <div class="query-method-selector">
+                        <label><input type="radio" name="method" value="vector"> Vector</label>
+                        <label><input type="radio" name="method" value="graph"> Graph</label>
+                        <label><input type="radio" name="method" value="all" checked> All</label>
+                    </div>
                     <button id="open-graph-btn" class="btn small-btn">View Knowledge Graph</button>
                 </div>
                 <div class="chat-history" id="chat-history">

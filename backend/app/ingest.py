@@ -1,6 +1,7 @@
 from langchain_community.document_loaders import PyPDFLoader
 import uuid
 import os
+import logging
 from minio import Minio
 from app.llm_wrapper import FallbackLLM
 from whoosh import index, fields
@@ -73,14 +74,22 @@ def ingest_file(file_path: str) -> dict:
     
     # ChromaDB (Store full doc + chunks)
     retriever = Retriever()
-    # Embed full doc
-    full_emb = llm_client.embed(primary_model=embed_model_name, input_texts=text).data[0].embedding
-    retriever.collection.add(
-        embeddings=[full_emb],
-        documents=[text],
-        metadatas=[{"doc_id": doc_id, "filename": filename, "is_full": True}],
-        ids=[f"{doc_id}_full"]
-    )
+    # Truncate full text for embedding if it's too long to avoid context length errors
+    max_embed_words = 500
+    words_full = text.split()
+    text_for_embed = " ".join(words_full[:max_embed_words]) if len(words_full) > max_embed_words else text
+    
+    try:
+        full_emb = llm_client.embed(primary_model=embed_model_name, input_texts=text_for_embed).data[0].embedding
+        retriever.collection.add(
+            embeddings=[full_emb],
+            documents=[text],
+            metadatas=[{"doc_id": doc_id, "filename": filename, "is_full": True}],
+            ids=[f"{doc_id}_full"]
+        )
+    except Exception as e:
+        logging.warning(f"Could not create full document embedding for {filename} (likely too long): {e}")
+        # Continue with chunks even if full doc fails
     meta_list = [{"doc_id": doc_id, "filename": filename, "chunk_idx": i, **c} for i, c in enumerate(chunks)]
     retriever.collection.add(embeddings=embs, documents=[c["text"] for c in chunks], 
                              metadatas=meta_list, ids=[f"{doc_id}_c{i}" for i in range(len(chunks))])

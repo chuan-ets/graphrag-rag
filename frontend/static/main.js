@@ -72,14 +72,20 @@ async function fetchAndRenderGraph() {
             },
             edges: {
                 color: {
-                    color: '#cbd5e1',
-                    highlight: '#94a3b8'
-                },
-                font: {
                     color: '#64748b',
-                    size: 11,
+                    highlight: '#3b82f6',
+                    hover: '#3b82f6'
+                },
+                width: 2,
+                font: {
+                    color: '#1e293b',
+                    size: 12,
                     face: 'Inter',
-                    align: 'middle'
+                    align: 'middle',
+                    background: '#ffffff'
+                },
+                arrows: {
+                    to: { enabled: true, scaleFactor: 1 }
                 },
                 smooth: {
                     type: 'continuous'
@@ -201,34 +207,44 @@ async function sendQuery() {
     const query = queryInput.value.trim();
     if (!query) return;
     
+    // Get selected method
+    const methodInput = document.querySelector('input[name="method"]:checked');
+    const method = methodInput ? methodInput.value : 'all';
+
+    // Add user message to UI
     appendMessage(query, true);
     queryInput.value = '';
     
-    const formData = new FormData();
-    formData.append('query', query);
-    
-    try {
-        // Show typing indicator
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'msg bot';
-        typingDiv.id = 'typing-indicator';
-        typingDiv.innerText = 'Thinking...';
-        chatHistory.appendChild(typingDiv);
-        chatHistory.scrollTop = chatHistory.scrollHeight;
+    // Show typing indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'msg bot';
+    typingDiv.id = 'typing-indicator';
+    typingDiv.innerText = 'Thinking...';
+    chatHistory.appendChild(typingDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
 
-        const res = await fetch(`${API_BASE}/query`, {
+    try {
+        const response = await fetch(`${API_BASE}/query`, {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: query,
+                method: method
+            })
         });
-        const result = await res.json();
+        const result = await response.json();
         
         // Remove typing indicator
-        document.getElementById('typing-indicator').remove();
+        const indicator = document.getElementById('typing-indicator');
+        if (indicator) indicator.remove();
         
         appendMessage(result.answer, false, result.router);
         
     } catch (err) {
-        document.getElementById('typing-indicator')?.remove();
+        const indicator = document.getElementById('typing-indicator');
+        if (indicator) indicator.remove();
         appendMessage('Error: ' + err.message, false);
     }
 }

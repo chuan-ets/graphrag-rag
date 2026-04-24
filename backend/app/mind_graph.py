@@ -4,6 +4,7 @@ import re
 from typing import List, Tuple, Set
 import networkx as nx
 from app.config import *
+from app.extractor import ExtractionAgent
 
 class MindmapGraph:
     """JSON-backed Knowledge Graph / Mindmap for incremental multi-document ingestion."""
@@ -39,21 +40,32 @@ class MindmapGraph:
         with open(self.filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    @staticmethod
-    def normalize_name(name) -> str:
-        """Standardize entity names for consistency."""
+    def normalize_name(self, name) -> str:
+        """Standardize entity names for consistency and merge similar ones."""
         if isinstance(name, list):
             name = " ".join([str(i) for i in name])
         if not isinstance(name, str):
             name = str(name)
             
-        # Remove common stop words at start/end, lowercase, strip
         name = name.lower().strip()
         # Remove generic prefixes
         prefixes = ["the ", "a ", "an "]
         for p in prefixes:
             if name.startswith(p):
                 name = name[len(p):]
+        
+        # --- Smart Fuzzy Merging ---
+        # If this name is very similar to an existing entity, use the existing one
+        existing_entities = [n for n, d in self.graph.nodes(data=True) if d.get("type") == "entity"]
+        for existing in existing_entities:
+            # Case 1: One is a substring of another (e.g. "sls" and "sls rocket")
+            if len(existing) >= 3 and len(name) >= 3:
+                if existing in name or name in existing:
+                    return existing
+            # Case 2: Very high overlap (simple heuristic)
+            if existing.replace(" ", "") == name.replace(" ", ""):
+                return existing
+                
         return name
 
 
@@ -97,10 +109,22 @@ class MindmapGraph:
         if not self.graph.has_node(doc_node):
             self.graph.add_node(doc_node, type="document", mentions=1, docs={doc_id})
             
-        # Extract triples from the document text
-        triples = self.extract_relations(text)
+        # Get list of existing entities to help LLM map/merge them
+        existing_entities = [n for n, d in self.graph.nodes(data=True) if d.get("type") == "entity"]
+        
+        # Extract triples from the document text, providing context of existing graph
+        extractor = ExtractionAgent()
+        triples = extractor.extract(text, existing_entities=existing_entities)
+        
         # For each triple, add nodes and edges to the graph.
         for subj, rel, obj in triples:
+            subj = self.normalize_name(subj)
+            obj = self.normalize_name(obj)
+            rel = rel.strip().upper().replace(" ", "_")
+            
+            if not subj or not obj:
+                continue
+
             for node in [subj, obj]:
                 if not self.graph.has_node(node):
                     self.graph.add_node(node, type="entity", mentions=0, docs=set())
